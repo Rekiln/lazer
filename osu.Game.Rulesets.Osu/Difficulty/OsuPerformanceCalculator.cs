@@ -233,7 +233,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty
                 aimValue *= 1.0 + calculateTraceableBonus(attributes.SliderFactor);
             }
 
-            double baseNerf = 1 - DiffUtils.Smootherstep(cheeseFactor, 1, 0.95);
+            double baseNerf = 1 - DiffUtils.Smootherstep(cheeseFactor, 1, 0.9);
 
             double cheeseNerf = baseNerf + (1 - baseNerf) * DiffUtils.Pow(DiffUtils.Erf(23.0 / totalDeviation.Value), 4);
 

@@ -112,7 +112,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators.Aim
 
             // Reduce difficulty for low spacing since spacing below radius is always to be flowed
             if (aimCheese)
-                flowDifficulty *= DiffUtils.Smootherstep(currDistance, 0, OsuDifficultyHitObject.NORMALISED_RADIUS);
+                flowDifficulty *= DiffUtils.Smootherstep(currDistance, 0, OsuDifficultyHitObject.NORMALISED_DIAMETER);
 
             return flowDifficulty;
         }

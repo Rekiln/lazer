@@ -35,6 +35,7 @@ namespace osu.Game.Overlays.Wiki
 
             Children = new Drawable[]
             {
+                new WikiSearch(),
                 createBlurb(html),
                 new GridContainer
                 {

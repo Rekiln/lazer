@@ -13,10 +13,11 @@ using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Online.API.Requests.Responses;
 using osu.Game.Overlays;
+using osuTK.Input;
 
 namespace osu.Game.Tests.Visual.Online
 {
-    public partial class TestSceneWikiOverlay : OsuTestScene
+    public partial class TestSceneWikiOverlay : OsuManualInputManagerTestScene
     {
         private DummyAPIAccess dummyAPI => (DummyAPIAccess)API;
 
@@ -103,6 +104,16 @@ namespace osu.Game.Tests.Visual.Online
             AddStep("Focus search box", () => searchBox?.TakeFocus());
             AddStep("Type in search box", () => searchBox!.Text = "wi");
             AddUntilStep("Suggestions shown", () => wiki.ChildrenOfType<OsuClickableContainer>().Any(d => d.GetType().Name == "ResultItem"));
+
+            AddRepeatStep("Press up", () => InputManager.Key(Key.Up), 2);
+            AddAssert("Search box text is changed", () => searchBox?.Text == "osu! wiki maintainers");
+
+            AddRepeatStep("Press down", () => InputManager.Key(Key.Down), 3);
+            AddAssert("Search box text is changed again", () => searchBox?.Text == "osu! wiki");
+
+            AddStep("Press up again", () => InputManager.Key(Key.Up));
+            AddAssert("Search box text is restored", () => searchBox?.Text == "wi");
+
             AddStep("Unfocus search box", () => searchBox?.KillFocus());
             AddUntilStep("Suggestions cleared", () => wiki.ChildrenOfType<OsuClickableContainer>().All(d => d.GetType().Name != "ResultItem"));
         }

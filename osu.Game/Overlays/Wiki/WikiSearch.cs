@@ -19,6 +19,7 @@ using osu.Game.Online.API;
 using osu.Game.Online.API.Requests;
 using osu.Game.Resources.Localisation.Web;
 using osuTK;
+using osuTK.Input;
 
 namespace osu.Game.Overlays.Wiki
 {
@@ -26,8 +27,13 @@ namespace osu.Game.Overlays.Wiki
     {
         private GetWikiSuggestionRequest? request;
         private ScheduledDelegate? queryChangeDebounce;
+        private string lastQuery = string.Empty;
 
         private readonly Bindable<ResultItem[]> resultItems = new Bindable<ResultItem[]>([]);
+        private int selectedItemIndex;
+
+        // index 0 means no item selected
+        private ResultItem? selectedItem => selectedItemIndex == 0 ? null : resultItems.Value[selectedItemIndex - 1];
 
         private WikiSearchTextBox textBox = null!;
 
@@ -36,6 +42,12 @@ namespace osu.Game.Overlays.Wiki
 
         [Resolved]
         private OsuGameBase game { get; set; } = null!;
+
+        [Resolved]
+        private OverlayScrollContainer scrollFlow { get; set; } = null!;
+
+        [Resolved]
+        private ILinkHandler? linkHandler { get; set; }
 
         public WikiSearch()
         {
@@ -54,6 +66,7 @@ namespace osu.Game.Overlays.Wiki
                 {
                     RelativeSizeAxes = Axes.X,
                     OnTextBoxFocusLost = onTextBoxFocusLost,
+                    OnTextBoxKeyDown = onTextBoxKeyDown,
                 },
                 resultContainer = new FillFlowContainer
                 {
@@ -64,26 +77,32 @@ namespace osu.Game.Overlays.Wiki
                 }
             };
 
-            textBox.Current.BindValueChanged(_ =>
+            textBox.Current.BindValueChanged(e =>
             {
+                if (e.NewValue == lastQuery || e.NewValue == selectedItem?.Title)
+                    return;
+
                 queryChangeDebounce = Scheduler.AddDelayed(performRequest, 200);
             });
 
             resultItems.BindValueChanged(e =>
             {
+                selectedItemIndex = 0;
                 resultContainer.Children = e.NewValue;
             });
         }
 
         private void performRequest()
         {
-            request?.Cancel();
+            lastQuery = textBox.Current.Value;
 
-            request = new GetWikiSuggestionRequest(textBox.Current.Value, game.CurrentLanguage.Value);
+            request?.Cancel();
+            request = new GetWikiSuggestionRequest(lastQuery, game.CurrentLanguage.Value);
             request.Success += response => resultItems.Value = response.Select(r => new ResultItem
             {
                 Highlight = r.Highlight,
                 ArticleUrl = $"{api.Endpoints.WebsiteUrl}/wiki/{r.Locale}/{r.Path}",
+                Title = r.Title,
             }).ToArray();
             request.Failure += _ => resultItems.Value = [];
 
@@ -97,9 +116,43 @@ namespace osu.Game.Overlays.Wiki
             resultItems.Value = [];
         }
 
+        private void onTextBoxKeyDown(KeyDownEvent e)
+        {
+            scrollFlow.ScrollToStart();
+
+            switch (e.Key)
+            {
+                case Key.Down:
+                    shiftSelectedItem(1);
+                    break;
+
+                case Key.Up:
+                    shiftSelectedItem(-1);
+                    break;
+
+                case Key.Enter:
+                    if (selectedItem != null)
+                        linkHandler?.HandleLink(selectedItem.ArticleUrl);
+                    break;
+            }
+        }
+
+        private void shiftSelectedItem(int direction)
+        {
+            selectedItem?.Selected.Toggle();
+
+            // non-negative modulo
+            int mod(int x, int m) => ((x % m) + m) % m;
+            selectedItemIndex = mod(selectedItemIndex + direction, resultItems.Value.Length + 1);
+
+            selectedItem?.Selected.Toggle();
+            textBox.Current.Value = selectedItem?.Title ?? lastQuery;
+        }
+
         private partial class WikiSearchTextBox : BasicSearchTextBox
         {
             public Action? OnTextBoxFocusLost;
+            public Action<KeyDownEvent>? OnTextBoxKeyDown;
 
             private const int font_size = 18;
             private const int vertical_padding = 13;
@@ -152,12 +205,21 @@ namespace osu.Game.Overlays.Wiki
                 BorderThickness = 0;
                 EdgeEffect = new EdgeEffectParameters();
             }
+
+            protected override bool OnKeyDown(KeyDownEvent e)
+            {
+                OnTextBoxKeyDown?.Invoke(e);
+                return base.OnKeyDown(e);
+            }
         }
 
         private partial class ResultItem : OsuClickableContainer
         {
             public required string Highlight;
             public required string ArticleUrl;
+            public required string Title;
+
+            public readonly BindableBool Selected = new BindableBool();
 
             private Box background = null!;
 
@@ -201,6 +263,16 @@ namespace osu.Game.Overlays.Wiki
                 textFlow.AddText(textPart[0]);
                 textFlow.AddText(textPart[1], t => t.Colour = colourProvider.Light2);
                 textFlow.AddText(textPart[2]);
+
+                Selected.BindValueChanged(_ => changeBackgroundColour());
+            }
+
+            private void changeBackgroundColour()
+            {
+                if (IsHovered || Selected.Value)
+                    background.Colour = colourProvider.Background3;
+                else
+                    background.Colour = colourProvider.Background6;
             }
 
             protected override bool OnClick(ClickEvent e)
@@ -211,13 +283,13 @@ namespace osu.Game.Overlays.Wiki
 
             protected override bool OnHover(HoverEvent e)
             {
-                background.Colour = colourProvider.Background3;
+                changeBackgroundColour();
                 return base.OnHover(e);
             }
 
             protected override void OnHoverLost(HoverLostEvent e)
             {
-                background.Colour = colourProvider.Background6;
+                changeBackgroundColour();
                 base.OnHoverLost(e);
             }
         }

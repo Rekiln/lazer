@@ -97,20 +97,24 @@ namespace osu.Game.Tests.Database
         [Test]
         public void TestAsyncWriteBeforeDisposal()
         {
-            ManualResetEventSlim resetEvent = new ManualResetEventSlim();
+            ManualResetEventSlim asyncWriteStarted = new ManualResetEventSlim();
+            ManualResetEventSlim asyncWriteCompleted = new ManualResetEventSlim();
 
             RunTestWithRealm((realm, _) =>
             {
                 var writeTask = realm.WriteAsync(r =>
                 {
-                    // ensure that disposal blocks for our execution
-                    Assert.That(resetEvent.Wait(100), Is.False);
+                    asyncWriteStarted.Set();
 
                     r.Add(TestResources.CreateTestBeatmapSetInfo());
+
+                    // ensure that disposal blocks for our execution
+                    Assert.That(asyncWriteCompleted.Wait(100), Is.False);
                 });
 
+                asyncWriteStarted.Wait(10000);
                 realm.Dispose();
-                resetEvent.Set();
+                asyncWriteCompleted.Set();
 
                 writeTask.WaitSafely();
             });

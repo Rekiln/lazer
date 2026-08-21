@@ -106,23 +106,18 @@ namespace osu.Game.Database
         private const int schema_version = 52;
 
         /// <summary>
-        /// Lock object which is held during <see cref="BlockAllOperations"/> sections, blocking realm retrieval during blocking periods.
+        /// Reader-writer lock used to coordinate async operations.
+        /// Its main purpose is to make an effort to ensure off-thread operations conclude before performing operations
+        /// that could cause loss of data if async operations were to be permitted to execute concurrently.
+        /// <list type="bullet">
+        /// <item>The reader lock is taken by threads other than update performing the operations.</item>
+        /// <item>The writer lock is taken by <see cref="BlockAllOperations"/> and <see cref="Dispose"/>.</item>
+        /// </list>
         /// </summary>
-        private readonly SemaphoreSlim realmRetrievalLock = new SemaphoreSlim(1);
-
-        /// <summary>
-        /// This <see cref="CancellationTokenSource"/> is cancelled on disposal
-        /// so that all callers of <see cref="getRealmInstance"/> who are blocked on <see cref="realmRetrievalLock"/>
-        /// can hard-fail the retrieval rather than spin on the semaphore forever.
-        /// </summary>
-        private readonly CancellationTokenSource realmRetrievalCancellation = new CancellationTokenSource();
-
-        private readonly CountdownEvent pendingAsyncOperations = new CountdownEvent(0);
-
-        /// <summary>
-        /// <c>true</c> when the current thread has already entered the <see cref="realmRetrievalLock"/>.
-        /// </summary>
-        private readonly ThreadLocal<bool> currentThreadHasRealmRetrievalLock = new ThreadLocal<bool>();
+        /// <remarks>
+        /// <see cref="LockRecursionPolicy.SupportsRecursion"/> is specified to support nested calls of <see cref="Run"/> and <see cref="Write"/> inside themselves or one another.
+        /// </remarks>
+        private readonly ReaderWriterLockSlim offThreadOperationLock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
 
         /// <summary>
         /// Holds a map of functions registered via <see cref="RegisterCustomSubscription"/> and <see cref="RegisterForNotifications{T}"/> and a coinciding action which when triggered,
@@ -220,8 +215,17 @@ namespace osu.Game.Database
 #endif
 
             // `prepareFirstRealmAccess()` triggers the first `getRealmInstance` call, which will implicitly run realm migrations and bring the schema up-to-date.
-            using (var realm = prepareFirstRealmAccess())
-                cleanupPendingDeletions(realm);
+            try
+            {
+                offThreadOperationLock.EnterWriteLock();
+                using (var realm = prepareFirstRealmAccess())
+                    cleanupPendingDeletions(realm);
+            }
+            finally
+            {
+                if (offThreadOperationLock.IsWriteLockHeld)
+                    offThreadOperationLock.ExitWriteLock();
+            }
         }
 
         /// <summary>
@@ -459,9 +463,18 @@ namespace osu.Game.Database
                 return action(Realm);
             }
 
-            total_reads_async.Value++;
-            using (var realm = getRealmInstance())
-                return action(realm);
+            try
+            {
+                offThreadOperationLock.EnterReadLock();
+                total_reads_async.Value++;
+                using (var realm = getRealmInstance())
+                    return action(realm);
+            }
+            finally
+            {
+                if (offThreadOperationLock.IsReadLockHeld)
+                    offThreadOperationLock.ExitReadLock();
+            }
         }
 
         /// <summary>
@@ -474,12 +487,20 @@ namespace osu.Game.Database
             {
                 total_reads_update.Value++;
                 action(Realm);
+                return;
             }
-            else
+
+            try
             {
+                offThreadOperationLock.EnterReadLock();
                 total_reads_async.Value++;
                 using (var realm = getRealmInstance())
                     action(realm);
+            }
+            finally
+            {
+                if (offThreadOperationLock.IsReadLockHeld)
+                    offThreadOperationLock.ExitReadLock();
             }
         }
 
@@ -490,19 +511,13 @@ namespace osu.Game.Database
         {
             ObjectDisposedException.ThrowIf(isDisposed, this);
 
-            // Required to ensure the read is tracked and accounted for before disposal.
-            // Can potentially be avoided if we have a need to do so in the future.
-            if (!ThreadSafety.IsUpdateThread)
-                throw new InvalidOperationException($@"{nameof(RunAsync)} must be called from the update thread.");
-
-            // CountdownEvent will fail if already at zero.
-            if (!pendingAsyncOperations.TryAddCount())
-                pendingAsyncOperations.Reset(1);
-
             return Task.Run(() =>
             {
+                ObjectDisposedException.ThrowIf(isDisposed, this);
+
+                offThreadOperationLock.EnterReadLock();
                 var result = Run(action);
-                pendingAsyncOperations.Signal();
+                offThreadOperationLock.ExitReadLock();
                 return result;
             }, token);
         }
@@ -518,12 +533,19 @@ namespace osu.Game.Database
                 total_writes_update.Value++;
                 return Realm.Write(action);
             }
-            else
-            {
-                total_writes_async.Value++;
 
+            total_writes_async.Value++;
+
+            try
+            {
+                offThreadOperationLock.EnterReadLock();
                 using (var realm = getRealmInstance())
                     return realm.Write(action);
+            }
+            finally
+            {
+                if (offThreadOperationLock.IsReadLockHeld)
+                    offThreadOperationLock.ExitReadLock();
             }
         }
 
@@ -537,13 +559,21 @@ namespace osu.Game.Database
             {
                 total_writes_update.Value++;
                 Realm.Write(action);
+                return;
             }
-            else
+
+            try
             {
+                offThreadOperationLock.EnterReadLock();
                 total_writes_async.Value++;
 
                 using (var realm = getRealmInstance())
                     realm.Write(action);
+            }
+            finally
+            {
+                if (offThreadOperationLock.IsReadLockHeld)
+                    offThreadOperationLock.ExitReadLock();
             }
         }
 
@@ -555,32 +585,31 @@ namespace osu.Game.Database
         {
             ObjectDisposedException.ThrowIf(isDisposed, this);
 
-            // Required to ensure the write is tracked and accounted for before disposal.
-            // Can potentially be avoided if we have a need to do so in the future.
-            if (!ThreadSafety.IsUpdateThread)
-                throw new InvalidOperationException(@$"{nameof(WriteAsync)} must be called from the update thread.");
-
-            // CountdownEvent will fail if already at zero.
-            if (!pendingAsyncOperations.TryAddCount())
-                pendingAsyncOperations.Reset(1);
-
             // Regardless of calling Realm.GetInstance or Realm.GetInstanceAsync, there is a blocking overhead on retrieval.
             // Adding a forced Task.Run resolves this.
-            var writeTask = Task.Run(async () =>
+            return Task.Run(async () =>
             {
+                ObjectDisposedException.ThrowIf(isDisposed, this);
+
                 total_writes_async.Value++;
 
-                // Not attempting to use Realm.GetInstanceAsync as there's seemingly no benefit to us (for now) and it adds complexity due to locking
-                // concerns in getRealmInstance(). On a quick check, it looks to be more suited to cases where realm is connecting to an online sync
-                // server, which we don't use. May want to report upstream or revisit in the future.
-                using (var realm = getRealmInstance())
-                    // ReSharper disable once AccessToDisposedClosure (WriteAsync should be marked as [InstantHandle]).
-                    await realm.WriteAsync(() => action(realm)).ConfigureAwait(false);
+                try
+                {
+                    offThreadOperationLock.EnterReadLock();
 
-                pendingAsyncOperations.Signal();
+                    // Not attempting to use Realm.GetInstanceAsync as there's seemingly no benefit to us (for now) and it adds complexity due to locking
+                    // concerns in getRealmInstance(). On a quick check, it looks to be more suited to cases where realm is connecting to an online sync
+                    // server, which we don't use. May want to report upstream or revisit in the future.
+                    using (var realm = getRealmInstance())
+                        // ReSharper disable once AccessToDisposedClosure (WriteAsync should be marked as [InstantHandle]).
+                        await realm.WriteAsync(() => action(realm)).ConfigureAwait(false);
+                }
+                finally
+                {
+                    if (offThreadOperationLock.IsReadLockHeld)
+                        offThreadOperationLock.ExitReadLock();
+                }
             });
-
-            return writeTask;
         }
 
         /// <summary>
@@ -591,31 +620,33 @@ namespace osu.Game.Database
         {
             ObjectDisposedException.ThrowIf(isDisposed, this);
 
-            // Required to ensure the write is tracked and accounted for before disposal.
-            // Can potentially be avoided if we have a need to do so in the future.
-            if (!ThreadSafety.IsUpdateThread)
-                throw new InvalidOperationException(@$"{nameof(WriteAsync)} must be called from the update thread.");
-
-            // CountdownEvent will fail if already at zero.
-            if (!pendingAsyncOperations.TryAddCount())
-                pendingAsyncOperations.Reset(1);
-
             // Regardless of calling Realm.GetInstance or Realm.GetInstanceAsync, there is a blocking overhead on retrieval.
             // Adding a forced Task.Run resolves this.
             var writeTask = Task.Run(async () =>
             {
-                T result;
-                total_writes_async.Value++;
+                ObjectDisposedException.ThrowIf(isDisposed, this);
 
-                // Not attempting to use Realm.GetInstanceAsync as there's seemingly no benefit to us (for now) and it adds complexity due to locking
-                // concerns in getRealmInstance(). On a quick check, it looks to be more suited to cases where realm is connecting to an online sync
-                // server, which we don't use. May want to report upstream or revisit in the future.
-                using (var realm = getRealmInstance())
-                    // ReSharper disable once AccessToDisposedClosure (WriteAsync should be marked as [InstantHandle]).
-                    result = await realm.WriteAsync(() => action(realm)).ConfigureAwait(false);
+                try
+                {
+                    offThreadOperationLock.EnterReadLock();
 
-                pendingAsyncOperations.Signal();
-                return result;
+                    T result;
+                    total_writes_async.Value++;
+
+                    // Not attempting to use Realm.GetInstanceAsync as there's seemingly no benefit to us (for now) and it adds complexity due to locking
+                    // concerns in getRealmInstance(). On a quick check, it looks to be more suited to cases where realm is connecting to an online sync
+                    // server, which we don't use. May want to report upstream or revisit in the future.
+                    using (var realm = getRealmInstance())
+                        // ReSharper disable once AccessToDisposedClosure (WriteAsync should be marked as [InstantHandle]).
+                        result = await realm.WriteAsync(() => action(realm)).ConfigureAwait(false);
+
+                    return result;
+                }
+                finally
+                {
+                    if (offThreadOperationLock.IsReadLockHeld)
+                        offThreadOperationLock.ExitReadLock();
+                }
             });
 
             return writeTask;
@@ -777,37 +808,8 @@ namespace osu.Game.Database
         private Realm getRealmInstance()
         {
             ObjectDisposedException.ThrowIf(isDisposed, this);
-
-            bool tookSemaphoreLock = false;
-
-            try
-            {
-                // Ensure that the thread that currently has the `realmRetrievalLock` can retrieve nested contexts and not deadlock on itself.
-                if (!currentThreadHasRealmRetrievalLock.Value)
-                {
-                    realmRetrievalLock.Wait(realmRetrievalCancellation.Token);
-                    currentThreadHasRealmRetrievalLock.Value = true;
-                    tookSemaphoreLock = true;
-                }
-                else
-                {
-                    // the semaphore is used to handle blocking of all realm retrieval during certain periods.
-                    // once the semaphore has been taken by this code section, it is safe to retrieve further realm instances on the same thread.
-                    // this can happen if a realm subscription is active and triggers a callback which has user code that calls `Run`.
-                }
-
-                realm_instances_created.Value++;
-
-                return Realm.GetInstance(getConfiguration());
-            }
-            finally
-            {
-                if (tookSemaphoreLock)
-                {
-                    realmRetrievalLock.Release();
-                    currentThreadHasRealmRetrievalLock.Value = false;
-                }
-            }
+            realm_instances_created.Value++;
+            return Realm.GetInstance(getConfiguration());
         }
 
         private RealmConfiguration getConfiguration(string? filename = null)
@@ -1343,8 +1345,8 @@ namespace osu.Game.Database
         /// <param name="backupFilename">The filename for the backup.</param>
         public void CreateBackup(string backupFilename)
         {
-            if (realmRetrievalLock.CurrentCount != 0)
-                throw new InvalidOperationException($"Call {nameof(BlockAllOperations)} before creating a backup.");
+            if (!offThreadOperationLock.IsWriteLockHeld)
+                throw new InvalidOperationException($@"Call {nameof(BlockAllOperations)} before creating a backup.");
 
             createBackup(backupFilename);
         }
@@ -1389,7 +1391,8 @@ namespace osu.Game.Database
 
             try
             {
-                realmRetrievalLock.Wait();
+                if (!offThreadOperationLock.TryEnterWriteLock(10000))
+                    Logger.Log(@"Realm took too long waiting on pending off-thread operations", level: LogLevel.Error);
 
                 if (hasInitialisedOnce)
                 {
@@ -1441,7 +1444,7 @@ namespace osu.Game.Database
                 syncContext?.Send(_ =>
                 {
                     // Flag ensures that we don't get in a deadlocked scenario due to a callback attempting to access `RealmAccess.Realm` or `RealmAccess.Run`
-                    // and hitting `realmRetrievalLock` a second time. Generally such usages should not exist, and as such we throw when an attempt is made
+                    // and hitting `offThreadOperationLock` a second time. Generally such usages should not exist, and as such we throw when an attempt is made
                     // to use in this fashion.
                     isSendingNotificationResetEvents = true;
 
@@ -1469,10 +1472,7 @@ namespace osu.Game.Database
 
             void restoreOperation()
             {
-                // Release of lock needs to happen here rather than on the update thread, as there may be another
-                // operation already blocking the update thread waiting for the blocking operation to complete.
                 Logger.Log(@"Restoring realm operations.", LoggingTarget.Database);
-                realmRetrievalLock.Release();
 
                 if (syncContext == null) return;
 
@@ -1485,6 +1485,8 @@ namespace osu.Game.Database
                 {
                     syncContext.Send(_ =>
                     {
+                        if (offThreadOperationLock.IsWriteLockHeld)
+                            offThreadOperationLock.ExitWriteLock();
                         ensureUpdateRealm();
                         updateRealmReestablished.Set();
                     }, null);
@@ -1493,6 +1495,8 @@ namespace osu.Game.Database
                 {
                     syncContext.Post(_ =>
                     {
+                        if (offThreadOperationLock.IsWriteLockHeld)
+                            offThreadOperationLock.ExitWriteLock();
                         ensureUpdateRealm();
                         updateRealmReestablished.Set();
                     }, null);
@@ -1512,20 +1516,27 @@ namespace osu.Game.Database
 
         public void Dispose()
         {
-            if (!pendingAsyncOperations.Wait(10000))
-                Logger.Log("Realm took too long waiting on pending async writes", level: LogLevel.Error);
+            if (isDisposed)
+                return;
+
+            // first, start by attempting to prevent simultaneous off-thread operations by taking the async operation write lock.
+            // the timeout is specified because cleaning up resources is more important than an absolute guarantee of taking the lock.
+            bool tookWriteLock = offThreadOperationLock.TryEnterWriteLock(10000);
+            if (!tookWriteLock)
+                Logger.Log(@"Realm took too long waiting on pending async writes", level: LogLevel.Error);
+
+            // setting the disposal flag prevents other callers of `Dispose()` from attempting to acquire the write lock too,
+            // and ensures that anyone wanting to take the read lock can check `isDisposed` first and throw.
+            isDisposed = true;
 
             updateRealm?.Dispose();
 
-            if (!isDisposed)
+            if (tookWriteLock)
             {
-                // intentionally block realm retrieval indefinitely. this ensures that nothing can start consuming a new instance after disposal.
-                realmRetrievalLock.Wait();
-                realmRetrievalLock.Dispose();
-                // also unblock all readers who may be spinning on realm retrieval.
-                realmRetrievalCancellation.Cancel();
-
-                isDisposed = true;
+                offThreadOperationLock.ExitWriteLock();
+                // the rwlock can only be disposed if nobody is waiting on it, otherwise it will throw exceptions.
+                // if the write lock was never taken, just let this spill on the floor - not much can be done in this situation anyway.
+                offThreadOperationLock.Dispose();
             }
         }
     }

@@ -110,7 +110,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators.Aim
             // Final velocity is being raised to a power because flow difficulty scales harder with both high distance and time, and we want to account for that
             flowDifficulty = DiffUtils.Pow(flowDifficulty, 1.45);
 
-            // Reduce difficulty for low spacing since spacing below radius is always to be flowed
+            // Check how much of the difficulty relies on small distances that can be cheesed by playing them improperly
             if (aimCheese)
                 flowDifficulty *= DiffUtils.Smootherstep(currDistance, 0, OsuDifficultyHitObject.NORMALISED_DIAMETER);
 

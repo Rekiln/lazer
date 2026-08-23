@@ -258,7 +258,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Skills
                 return ObjectDifficulties.Count;
 
             // Use a weighted sum of all strains. Constants are arbitrary and give nice values
-            return ObjectDifficulties.Zip(snapProbabilities, (s, pSnap) => DiffUtils.Logistic(s / consistentTopStrain, 0.88, 10, 0.1 + 1 * pSnap)).Sum();
+            return ObjectDifficulties.Zip(snapProbabilities, (s, pSnap) => DiffUtils.Logistic(s / consistentTopStrain, 0.88, 10, 0.2 + 0.9 * pSnap)).Sum();
         }
     }
 }

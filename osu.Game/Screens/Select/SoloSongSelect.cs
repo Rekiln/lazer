@@ -91,7 +91,7 @@ namespace osu.Game.Screens.Select
             };
 
             if (beatmaps.CanHide(beatmap))
-                yield return new OsuMenuItem(WebCommonStrings.ButtonsHide.ToSentence(), MenuItemType.Destructive, () => beatmaps.Hide(beatmap));
+                yield return new OsuMenuItem(WebCommonStrings.ButtonsHide.ToSentence(), MenuItemType.Standard, () => beatmaps.Hide(beatmap));
         }
 
         protected override void OnStart()

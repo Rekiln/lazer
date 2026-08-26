@@ -358,7 +358,7 @@ namespace osu.Game.Screens.Select
             if (existingQuery.Contains(query))
                 return;
 
-            searchTextBox.Current.Value = string.IsNullOrEmpty(existingQuery.Trim())
+            searchTextBox.Current.Value = string.IsNullOrWhiteSpace(existingQuery)
                 ? query
                 : string.Join(' ', existingQuery.TrimEnd(), query);
         }

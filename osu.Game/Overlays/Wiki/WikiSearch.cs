@@ -44,7 +44,7 @@ namespace osu.Game.Overlays.Wiki
         private OsuGameBase game { get; set; } = null!;
 
         [Resolved]
-        private OverlayScrollContainer scrollFlow { get; set; } = null!;
+        private OverlayScrollContainer scrollContainer { get; set; } = null!;
 
         [Resolved]
         private ILinkHandler? linkHandler { get; set; }
@@ -118,7 +118,7 @@ namespace osu.Game.Overlays.Wiki
 
         private void onTextBoxKeyDown(KeyDownEvent e)
         {
-            scrollFlow.ScrollToStart();
+            scrollContainer.ScrollToStart();
 
             switch (e.Key)
             {

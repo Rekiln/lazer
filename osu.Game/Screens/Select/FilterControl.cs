@@ -360,7 +360,7 @@ namespace osu.Game.Screens.Select
 
             searchTextBox.Current.Value = string.IsNullOrWhiteSpace(existingQuery)
                 ? query
-                : string.Join(' ', existingQuery.TrimEnd(), query);
+                : string.Join(' ', existingQuery.Trim(), query);
         }
 
         protected override void PopIn()

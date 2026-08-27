@@ -102,7 +102,7 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
             double baseDifficulty = preemptDifficulty;
 
             // Velocity bonus, as harder patterns are harder to read
-            double velocityFactor = (currObj.LazyJumpDistance / currObj.AdjustedDeltaTime) * highBpmBonus(currObj.AdjustedDeltaTime);
+            double velocityFactor = (currObj.JumpDistance / currObj.AdjustedDeltaTime) * highBpmBonus(currObj.AdjustedDeltaTime);
 
             // Safeguard against easy maps with extremely high AR
             double reduceBaseline = velocityFactor * 10;

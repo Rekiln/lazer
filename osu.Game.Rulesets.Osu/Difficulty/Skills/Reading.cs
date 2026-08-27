@@ -25,8 +25,6 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Skills
             hasHiddenMod = mods.OfType<OsuModHidden>().Any(m => !m.OnlyFadeApproachCircles.Value);
         }
 
-        protected override double HarmonicScale => 5;
-
         private double currentStrain;
 
         private double? firstObjectStartTime;
@@ -86,10 +84,12 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Skills
 
         public override double DifficultyValue()
         {
+            const double harmonic_scale = 5;
+
             if (ObjectDifficulties.Count == 0)
                 return 0;
 
-            (double difficulty, harmonicWeightSum) = HarmonicSeries.Aggregate(ObjectDifficulties);
+            (double difficulty, harmonicWeightSum) = HarmonicSeries.Aggregate(ObjectDifficulties, harmonic_scale);
 
             return difficulty;
         }

@@ -106,13 +106,10 @@ namespace osu.Game.Rulesets.Osu.Difficulty.Evaluators
 
             // Safeguard against easy maps with extremely high AR
             double reduceBaseline = velocityFactor * 10;
+            double delta = baseDifficulty - reduceBaseline;
 
-            if (baseDifficulty > reduceBaseline)
-            {
-                // Scale logarithmically past the baseline
-                double delta = baseDifficulty - reduceBaseline;
-                baseDifficulty = reduceBaseline + Math.Log(delta + 1);
-            }
+            // Scale logarithmically past the baseline
+            baseDifficulty = reduceBaseline + (delta > 0 ? Math.Log(delta + 1) : delta);
 
             // Apply multipliers to base difficulty and velocity factor
             double difficulty = 30 * baseDifficulty + 0.5 * velocityFactor * preemptDifficulty;

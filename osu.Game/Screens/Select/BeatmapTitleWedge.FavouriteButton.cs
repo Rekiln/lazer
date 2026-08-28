@@ -33,6 +33,7 @@ namespace osu.Game.Screens.Select
         public partial class FavouriteButton : OsuClickableContainer
         {
             private readonly BindableBool isFavourite = new BindableBool();
+            private readonly IBindable<APIUser> localUser = new Bindable<APIUser>();
 
             private Box background = null!;
             private OsuSpriteText valueText = null!;
@@ -149,6 +150,13 @@ namespace osu.Game.Screens.Select
                 Action = toggleFavourite;
             }
 
+            protected override void LoadComplete()
+            {
+                base.LoadComplete();
+
+                localUser.BindTo(api.LocalUser);
+            }
+
             protected override bool OnHover(HoverEvent e)
             {
                 hoverLayer.FadeIn(500, Easing.OutQuint);
@@ -165,6 +173,8 @@ namespace osu.Game.Screens.Select
             {
                 get
                 {
+                    if (localUser.Value is GuestUser) return BeatmapsetsStrings.ShowDetailsFavouriteLogin.ToSentence();
+
                     if (!Enabled.Value) return string.Empty;
 
                     return isFavourite.Value ? BeatmapsetsStrings.ShowDetailsUnfavourite.ToSentence() : BeatmapsetsStrings.ShowDetailsFavourite.ToSentence();

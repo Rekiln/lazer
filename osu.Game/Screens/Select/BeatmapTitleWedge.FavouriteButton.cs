@@ -173,13 +173,18 @@ namespace osu.Game.Screens.Select
             {
                 get
                 {
-                    if (localUser.Value is GuestUser) return BeatmapsetsStrings.ShowDetailsFavouriteLogin.ToSentence();
+                    if (localUser.Value is GuestUser)
+                        return BeatmapsetsStrings.ShowDetailsFavouriteLogin.ToSentence();
 
-                    if (!Enabled.Value) return string.Empty;
+                    if (!Enabled.Value)
+                        return string.Empty;
 
-                    return isFavourite.Value ? BeatmapsetsStrings.ShowDetailsUnfavourite.ToSentence() : BeatmapsetsStrings.ShowDetailsFavourite.ToSentence();
+                    return isFavourite.Value
+                        ? BeatmapsetsStrings.ShowDetailsUnfavourite.ToSentence()
+                        : BeatmapsetsStrings.ShowDetailsFavourite.ToSentence();
                 }
             }
+
             // Note: `setLoading()` and `setBeatmapSet()` are called externally via their public counterparts by song select when the beatmap changes,
             // as well as internally in order to display the progress and result of the (un)favourite operation when the button is clicked.
             // In case of external calls, we want to cancel pending favourite requests, primarily to avoid a situation when a late success callback from an (un)favourite

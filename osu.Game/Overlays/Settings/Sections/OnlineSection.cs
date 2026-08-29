@@ -26,6 +26,8 @@ namespace osu.Game.Overlays.Settings.Sections
             {
                 new ContentDownloadSettings(),
                 new AlertsAndPrivacySettings(),
+                new ServerSettings(),
+                new ProxySettings(),
             };
 
             if (RuntimeInfo.IsDesktop)

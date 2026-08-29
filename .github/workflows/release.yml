@@ -1,0 +1,162 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+
+jobs:
+  version:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      semver: ${{ steps.version.outputs.semver }}
+      velopackVersion: ${{ steps.version.outputs.velopackVersion }}
+      assemblyVersion: ${{ steps.version.outputs.assemblyVersion }}
+      fileVersion: ${{ steps.version.outputs.fileVersion }}
+    steps:
+      - name: Determine version
+        id: version
+        shell: bash
+        run: |
+          RAW_TAG="${{ github.ref_name }}"
+          if [[ "$RAW_TAG" == "master" || -z "$RAW_TAG" ]]; then
+            VERSION="v$(date +'%Y.%m%d.0')"
+          else
+            VERSION="$RAW_TAG"
+          fi
+
+          SEMVER=${VERSION#v}
+          NUMERIC=${SEMVER%%-*}
+          PARTS=$(echo "$NUMERIC" | awk -F. '{print NF}')
+          if [[ $PARTS -eq 1 ]]; then NUMERIC="$NUMERIC.0.0.0"; fi
+          if [[ $PARTS -eq 2 ]]; then NUMERIC="$NUMERIC.0.0"; fi
+          if [[ $PARTS -eq 3 ]]; then NUMERIC="$NUMERIC.0"; fi
+
+          # Velopack requires 3-part semver
+          VELOPACK_VERSION=$(echo "$NUMERIC" | awk -F. '{print $1"."$2"."$3}')
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "semver=$SEMVER" >> $GITHUB_OUTPUT
+          echo "velopackVersion=$VELOPACK_VERSION" >> $GITHUB_OUTPUT
+          echo "assemblyVersion=$NUMERIC" >> $GITHUB_OUTPUT
+          echo "fileVersion=$NUMERIC" >> $GITHUB_OUTPUT
+          echo "Computed version: $VERSION (semver: $SEMVER, velopack: $VELOPACK_VERSION, assembly: $NUMERIC)"
+
+  build:
+    name: Build ${{ matrix.artifact-name }}
+    needs: version
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            artifact-name: lazer-windows
+            executable: "lazer!.exe"
+            channel: "win"
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact-name: lazer-linux
+            executable: "lazer!"
+            channel: "linux"
+          - os: macos-latest
+            runtime: osx-arm64
+            artifact-name: lazer-macos
+            executable: "lazer!"
+            channel: "osx-arm64"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install Velopack CLI
+        shell: bash
+        run: dotnet tool install -g vpk
+
+      - name: Restore dependencies
+        shell: bash
+        run: |
+          dotnet restore osu.Desktop/osu.Desktop.csproj \
+            --runtime ${{ matrix.runtime }} \
+            --verbosity normal
+
+      - name: Build and publish
+        shell: bash
+        run: |
+          dotnet publish osu.Desktop/osu.Desktop.csproj \
+            --self-contained \
+            --runtime ${{ matrix.runtime }} \
+            --configuration Release \
+            --output "publish/${{ matrix.runtime }}" \
+            --no-restore \
+            -p:PublishSingleFile=false \
+            -p:PublishTrimmed=false \
+            -p:Version=${{ needs.version.outputs.semver }} \
+            -p:FileVersion=${{ needs.version.outputs.fileVersion }} \
+            -p:AssemblyVersion=${{ needs.version.outputs.assemblyVersion }} \
+            -p:InformationalVersion=${{ needs.version.outputs.version }}
+
+      - name: Set executable permissions (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        shell: bash
+        run: chmod +x "publish/${{ matrix.runtime }}/${{ matrix.executable }}"
+
+      - name: Create Velopack package
+        shell: bash
+        run: |
+          vpk pack \
+            -u "lazer" \
+            -v "${{ needs.version.outputs.velopackVersion }}" \
+            -p "publish/${{ matrix.runtime }}" \
+            -e "${{ matrix.executable }}" \
+            --packTitle "lazer!" \
+            -i "osu.Desktop/lazer.ico" \
+            -c "${{ matrix.channel }}"
+
+      - name: Upload installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.artifact-name }}
+          path: Releases/
+          retention-days: 7
+
+  release:
+    name: Create GitHub Release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: 'installer-*'
+          merge-multiple: true
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.version }}
+          name: lazer! ${{ needs.version.outputs.version }}
+          files: artifacts/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -53,12 +53,9 @@ namespace osu.Game.Utils
             if (DebugUtils.IsNUnitRunning)
                 return;
 
-            if (!game.IsDeployedBuild || !game.CreateEndpoints().WebsiteUrl.EndsWith(@".ppy.sh", StringComparison.Ordinal))
-                return;
-
             sentrySession = SentrySdk.Init(options =>
             {
-                options.Dsn = string.Empty;
+                options.Dsn = @"https://0950c700aa12a08fa69d5e8e4498a7da@o4510079199281152.ingest.us.sentry.io/4511994132430848";
                 options.AutoSessionTracking = true;
                 options.IsEnvironmentUser = false;
                 options.IsGlobalModeEnabled = true;

@@ -7,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Net.Http;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -106,8 +108,69 @@ namespace osu.Game
 
         public virtual bool UseDevelopmentServer => DebugUtils.IsDebugBuild;
 
-        public virtual EndpointConfiguration CreateEndpoints() =>
-            UseDevelopmentServer ? new DevelopmentEndpointConfiguration() : new ProductionEndpointConfiguration();
+        protected virtual EndpointConfiguration CreateEndpoints()
+        {
+            applyProxy();
+
+            EndpointConfiguration config = UseDevelopmentServer ? new DevelopmentEndpointConfiguration() : new ProductionEndpointConfiguration();
+
+            string apiUrl = LocalConfig?.Get<string>(OsuSetting.ApiUrl);
+
+            if (!string.IsNullOrWhiteSpace(apiUrl))
+            {
+                apiUrl = SanitizeUrl(apiUrl);
+
+                config.WebsiteUrl = config.APIUrl = apiUrl;
+                config.SpectatorUrl = $@"{apiUrl}/signalr/spectator";
+                config.MultiplayerUrl = $@"{apiUrl}/signalr/multiplayer";
+                config.MetadataUrl = $@"{apiUrl}/signalr/metadata";
+                config.BeatmapSubmissionServiceUrl = $@"{apiUrl}/beatmap-submission";
+            }
+
+            return config;
+        }
+
+        private static string SanitizeUrl(string url)
+        {
+            url = url.Trim().TrimEnd('/');
+
+            if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+                url = @"https://" + url.Substring(@"http://".Length);
+            else if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                url = $@"https://{url}";
+
+            return url;
+        }
+
+        private void ApplyProxy()
+        {
+            string proxyUrl = LocalConfig?.Get<string>(OsuSetting.ProxyUrl);
+
+            if (string.IsNullOrWhiteSpace(proxyUrl))
+                return;
+
+            try
+            {
+                var webProxy = new WebProxy(proxyUrl);
+
+                string username = LocalConfig?.Get<string>(OsuSetting.ProxyUsername);
+                string password = LocalConfig?.Get<string>(OsuSetting.ProxyPassword);
+
+                if (!string.IsNullOrWhiteSpace(username))
+                    webProxy.Credentials = new NetworkCredential(username, password ?? string.Empty);
+
+                HttpClient.DefaultProxy = webProxy;
+                WebRequest.DefaultWebProxy = webProxy;
+
+                Environment.SetEnvironmentVariable("HTTP_PROXY", proxyUrl);
+                Environment.SetEnvironmentVariable("HTTPS_PROXY", proxyUrl);
+                Environment.SetEnvironmentVariable("ALL_PROXY", proxyUrl);
+            }
+            catch (Exception e)
+            {
+                Logger.Log($@"Failed to configure proxy: {e.Message}", LoggingTarget.Network);
+            }
+        }
 
         protected override OnlineStore CreateOnlineStore() => new TrustedDomainOnlineStore();
 

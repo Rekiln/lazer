@@ -70,7 +70,9 @@ namespace osu.Game.Configuration
 
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
+            SetDefault(OsuSetting.LazerUsername, string.Empty);
             SetDefault(OsuSetting.Token, string.Empty);
+            SetDefault(OsuSetting.LazerToken, string.Empty);
 
             SetDefault(OsuSetting.AutomaticallyDownloadMissingBeatmaps, true);
 
@@ -99,6 +101,12 @@ namespace osu.Game.Configuration
             SetDefault(OsuSetting.NotifyOnUsernameMentioned, true);
             SetDefault(OsuSetting.NotifyOnPrivateMessage, true);
             SetDefault(OsuSetting.NotifyOnFriendPresenceChange, true);
+
+            SetDefault(OsuSetting.ApiUrl, string.Empty);
+
+            SetDefault(OsuSetting.ProxyUrl, string.Empty);
+            SetDefault(OsuSetting.ProxyUsername, string.Empty);
+            SetDefault(OsuSetting.ProxyPassword, string.Empty);
 
             // Audio
             SetDefault(OsuSetting.VolumeInactive, 0.25, 0, 1, 0.01);
@@ -332,6 +340,11 @@ namespace osu.Game.Configuration
     {
         Ruleset,
         Token,
+
+        /// <summary>
+        /// Oauth token for custom API server.
+        /// </summary>
+        LazerToken,
         MenuCursorSize,
         GameplayCursorSize,
         AutoCursorSize,
@@ -379,6 +392,11 @@ namespace osu.Game.Configuration
         BeatmapLeaderboardSortMode,
         BeatmapDetailModsFilter,
         Username,
+
+        /// <summary>
+        /// Saved username for custom API server.
+        /// </summary>
+        LazerUsername,
         ReleaseStream,
         SavePassword,
         SaveUsername,
@@ -478,5 +496,25 @@ namespace osu.Game.Configuration
 
         DashboardSortMode,
         DashboardDisplayStyle,
+
+        /// <summary>
+        /// API endpoint URL.
+        /// </summary>
+        ApiUrl,
+
+        /// <summary>
+        /// Proxy URL.
+        /// </summary>
+        ProxyUrl,
+
+        /// <summary>
+        /// Username for proxy authentication.
+        /// </summary>
+        ProxyUsername,
+
+        /// <summary>
+        /// Password for proxy authentication.
+        /// </summary>
+        ProxyPassword,
     }
 }

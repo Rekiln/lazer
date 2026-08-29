@@ -108,7 +108,7 @@ namespace osu.Game
 
         public virtual bool UseDevelopmentServer => DebugUtils.IsDebugBuild;
 
-        protected virtual EndpointConfiguration CreateEndpoints()
+        protected internal virtual EndpointConfiguration CreateEndpoints()
         {
             applyProxy();
 

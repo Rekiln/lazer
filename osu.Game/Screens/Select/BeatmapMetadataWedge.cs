@@ -412,11 +412,12 @@ namespace osu.Game.Screens.Select
             userTagsCancellationSource = new CancellationTokenSource();
 
             var token = userTagsCancellationSource.Token;
+            Guid beatmapId = beatmap.Value.BeatmapInfo.ID;
 
             realm.RunAsync(r =>
             {
                 // need to refetch because `beatmap.Value.BeatmapInfo` is not going to have the latest tags
-                var refetchedBeatmap = r.Find<BeatmapInfo>(beatmap.Value.BeatmapInfo.ID);
+                var refetchedBeatmap = r.Find<BeatmapInfo>(beatmapId);
                 return refetchedBeatmap?.Metadata.UserTags.ToArray() ?? [];
             }, token).ContinueWith(t =>
             {

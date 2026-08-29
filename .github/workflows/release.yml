@@ -26,7 +26,7 @@ jobs:
         run: |
           RAW_TAG="${{ github.ref_name }}"
           if [[ "$RAW_TAG" == "master" || -z "$RAW_TAG" ]]; then
-            VERSION="v$(date +'%Y.%m%d.0')"
+            VERSION="v$(date +'%-Y.%-m%-d.0')"
           else
             VERSION="$RAW_TAG"
           fi

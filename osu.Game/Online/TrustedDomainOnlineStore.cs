@@ -11,9 +11,9 @@ namespace osu.Game.Online
     {
         protected override string GetLookupUrl(string url)
         {
-            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || !uri.Host.EndsWith(@".ppy.sh", StringComparison.OrdinalIgnoreCase))
+            if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri) || uri.Scheme != Uri.UriSchemeHttps)
             {
-                Logger.Log($@"Blocking resource lookup from external website: {url}", LoggingTarget.Network, LogLevel.Important);
+                Logger.Log($@"Blocking non-HTTPS or invalid resource lookup: {url}", LoggingTarget.Network, LogLevel.Important);
                 return string.Empty;
             }
 

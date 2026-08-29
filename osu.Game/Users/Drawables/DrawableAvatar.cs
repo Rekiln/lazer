@@ -3,10 +3,14 @@
 
 #nullable disable
 
+using System.Threading;
+using JetBrains.Annotations;
 using osu.Framework.Allocation;
+using osu.Framework.Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
+using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Online.API.Requests.Responses;
 
@@ -16,6 +20,7 @@ namespace osu.Game.Users.Drawables
     public partial class DrawableAvatar : Sprite
     {
         private readonly IUser user;
+        private CancellationTokenSource cancellationTokenSource;
 
         /// <summary>
         /// A simple, non-interactable avatar sprite for the specified user.
@@ -32,12 +37,35 @@ namespace osu.Game.Users.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(LargeTextureStore textures, OnlineAssetCachingStore onlineTextures)
+        private void load(LargeTextureStore textures, OnlineAssetCachingStore onlineTextures, [CanBeNull] UserLookupCache userLookupCache)
         {
             if (user != null && user.OnlineID > 1)
-                // TODO: The fallback here should not need to exist. Users should be looked up and populated via UserLookupCache or otherwise
-                // in remaining cases where this is required (chat tabs, local leaderboard), at which point this should be removed.
-                Texture = onlineTextures.Get((user as APIUser)?.AvatarUrl ?? $@"https://a.ppy.sh/{user.OnlineID}");
+            {
+                string avatarUrl = (user as APIUser)?.AvatarUrl;
+
+                if (!string.IsNullOrEmpty(avatarUrl))
+                {
+                    Texture = onlineTextures.Get(avatarUrl);
+                }
+                else if (userLookupCache != null)
+                {
+                    cancellationTokenSource = new CancellationTokenSource();
+
+                    userLookupCache.GetUserAsync(user.OnlineID, cancellationTokenSource.Token)
+                                   .ContinueWith(task =>
+                                   {
+                                       var apiUser = task.GetResultSafely();
+
+                                       if (apiUser != null && !string.IsNullOrEmpty(apiUser.AvatarUrl))
+                                       {
+                                           Schedule(() =>
+                                           {
+                                               Texture = onlineTextures.Get(apiUser.AvatarUrl);
+                                           });
+                                       }
+                                   }, cancellationTokenSource.Token);
+                }
+            }
 
             Texture ??= textures.Get(@"Online/avatar-guest");
         }
@@ -46,6 +74,13 @@ namespace osu.Game.Users.Drawables
         {
             base.LoadComplete();
             this.FadeInFromZero(300, Easing.OutQuint);
+        }
+
+        protected override void Dispose(bool isDisposing)
+        {
+            base.Dispose(isDisposing);
+            cancellationTokenSource?.Cancel();
+            cancellationTokenSource?.Dispose();
         }
     }
 }

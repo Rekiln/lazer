@@ -119,14 +119,24 @@ jobs:
       - name: Create Velopack package
         shell: bash
         run: |
-          vpk pack \
-            -u "lazer" \
-            -v "${{ needs.version.outputs.velopackVersion }}" \
-            -p "publish/${{ matrix.runtime }}" \
-            -e "${{ matrix.executable }}" \
-            --packTitle "lazer!" \
-            -i "osu.Desktop/lazer.ico" \
-            -c "${{ matrix.channel }}"
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            vpk pack \
+              -u "lazer" \
+              -v "${{ needs.version.outputs.velopackVersion }}" \
+              -p "publish/${{ matrix.runtime }}" \
+              -e "${{ matrix.executable }}" \
+              --packTitle "lazer!" \
+              -c "${{ matrix.channel }}"
+          else
+            vpk pack \
+              -u "lazer" \
+              -v "${{ needs.version.outputs.velopackVersion }}" \
+              -p "publish/${{ matrix.runtime }}" \
+              -e "${{ matrix.executable }}" \
+              --packTitle "lazer!" \
+              -i "osu.Desktop/lazer.ico" \
+              -c "${{ matrix.channel }}"
+          fi
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v4

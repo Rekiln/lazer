@@ -4,18 +4,16 @@
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
-using osu.Framework.Graphics.Containers;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
-using osu.Game.Graphics.Sprites;
 
 namespace osu.Game.Overlays.Settings.Sections.Online
 {
     public partial class ServerSettings : SettingsSubsection
     {
-        protected override LocalisableString Header => "Custom Server";
+        protected override LocalisableString Header => "Server";
 
         private Bindable<string> apiUrl = null!;
         private OsuTextFlowContainer restartNotice = null!;
@@ -29,7 +27,7 @@ namespace osu.Game.Overlays.Settings.Sections.Online
             {
                 new SettingsTextBox
                 {
-                    LabelText = "Custom API Server URL",
+                    LabelText = "API Server URL",
                     Current = apiUrl,
                 },
                 restartNotice = new OsuTextFlowContainer(cp =>

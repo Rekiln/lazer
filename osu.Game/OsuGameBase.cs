@@ -118,7 +118,7 @@ namespace osu.Game
 
             if (!string.IsNullOrWhiteSpace(apiUrl))
             {
-                apiUrl = SanitizeUrl(apiUrl);
+                apiUrl = sanitizeUrl(apiUrl);
 
                 config.WebsiteUrl = config.APIUrl = apiUrl;
                 config.SpectatorUrl = $@"{apiUrl}/signalr/spectator";
@@ -130,19 +130,19 @@ namespace osu.Game
             return config;
         }
 
-        private static string SanitizeUrl(string url)
+        private static string sanitizeUrl(string url)
         {
             url = url.Trim().TrimEnd('/');
 
             if (url.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-                url = @"https://" + url.Substring(@"http://".Length);
+                url = $"https://{url.AsSpan("http://".Length)}";
             else if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                 url = $@"https://{url}";
 
             return url;
         }
 
-        private void ApplyProxy()
+        private void applyProxy()
         {
             string proxyUrl = LocalConfig?.Get<string>(OsuSetting.ProxyUrl);
 

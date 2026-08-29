@@ -4,19 +4,17 @@
 using osu.Framework.Allocation;
 using osu.Framework.Bindables;
 using osu.Framework.Graphics;
-using osu.Framework.Graphics.Containers;
 using osu.Framework.Localisation;
 using osu.Game.Configuration;
 using osu.Game.Graphics;
 using osu.Game.Graphics.Containers;
-using osu.Game.Graphics.Sprites;
 using osu.Game.Overlays;
 
 namespace osu.Game.Overlays.Settings.Sections.Online
 {
     public partial class ProxySettings : SettingsSubsection
     {
-        protected override LocalisableString Header => "Network Proxy";
+        protected override LocalisableString Header => "Proxy";
 
         private Bindable<string> proxyUrl = null!;
         private Bindable<string> proxyUsername = null!;
@@ -36,7 +34,6 @@ namespace osu.Game.Overlays.Settings.Sections.Online
                 {
                     LabelText = "URL",
                     Current = proxyUrl,
-                    PlaceholderText = "http://127.0.0.1:7890",
                 },
                 new OsuTextFlowContainer(cp =>
                 {
@@ -52,13 +49,11 @@ namespace osu.Game.Overlays.Settings.Sections.Online
                 {
                     LabelText = "Username",
                     Current = proxyUsername,
-                    PlaceholderText = "Optional",
                 },
-                new SettingsPasswordTextBox
+                new SettingsTextBox
                 {
                     LabelText = "Password",
                     Current = proxyPassword,
-                    PlaceholderText = "Optional",
                 },
                 restartNotice = new OsuTextFlowContainer(cp =>
                 {

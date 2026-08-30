@@ -55,15 +55,20 @@ namespace osu.Game.Users.Drawables
                                    .ContinueWith(task =>
                                    {
                                        var apiUser = task.GetResultSafely();
+                                       string targetUrl = apiUser?.AvatarUrl;
 
-                                       if (apiUser != null && !string.IsNullOrEmpty(apiUser.AvatarUrl))
+                                       if (string.IsNullOrEmpty(targetUrl))
+                                           targetUrl = $@"https://a.ppy.sh/{user.OnlineID}";
+
+                                       Schedule(() =>
                                        {
-                                           Schedule(() =>
-                                           {
-                                               Texture = onlineTextures.Get(apiUser.AvatarUrl);
-                                           });
-                                       }
+                                           Texture = onlineTextures.Get(targetUrl);
+                                       });
                                    }, cancellationTokenSource.Token);
+                }
+                else
+                {
+                    Texture = onlineTextures.Get($@"https://a.ppy.sh/{user.OnlineID}");
                 }
             }
 

@@ -2,13 +2,17 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.Threading;
+using JetBrains.Annotations;
 using osu.Framework.Allocation;
+using osu.Framework.Extensions;
 using osu.Framework.Extensions.Color4Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Colour;
 using osu.Framework.Graphics.Containers;
 using osu.Framework.Graphics.Shapes;
 using osu.Framework.Graphics.Sprites;
+using osu.Game.Database;
 using osu.Game.Graphics;
 using osu.Game.Online.API.Requests.Responses;
 using osuTK.Graphics;
@@ -42,6 +46,8 @@ namespace osu.Game.Users
         private partial class Cover : CompositeDrawable
         {
             private readonly APIUser? user;
+            private Sprite sprite = null!;
+            private CancellationTokenSource? cancellationTokenSource;
 
             public Cover(APIUser? user)
             {
@@ -51,26 +57,48 @@ namespace osu.Game.Users
             }
 
             [BackgroundDependencyLoader]
-            private void load(OnlineAssetCachingStore textures)
+            private void load(OnlineAssetCachingStore textures, [CanBeNull] UserLookupCache? userLookupCache)
             {
-                if (user == null)
+                InternalChildren = new Drawable[]
                 {
-                    InternalChild = new Box
+                    new Box
                     {
                         RelativeSizeAxes = Axes.Both,
                         Colour = ColourInfo.GradientVertical(Color4.Black.Opacity(0.1f), Color4.Black.Opacity(0.75f))
-                    };
-                }
-                else
-                {
-                    InternalChild = new Sprite
+                    },
+                    sprite = new Sprite
                     {
                         RelativeSizeAxes = Axes.Both,
-                        Texture = textures.Get(user.CoverUrl),
                         FillMode = FillMode.Fill,
                         Anchor = Anchor.Centre,
                         Origin = Anchor.Centre
-                    };
+                    }
+                };
+
+                if (user != null)
+                {
+                    if (!string.IsNullOrEmpty(user.CoverUrl))
+                    {
+                        sprite.Texture = textures.Get(user.CoverUrl);
+                    }
+                    else if (user.OnlineID > 1 && userLookupCache != null)
+                    {
+                        cancellationTokenSource = new CancellationTokenSource();
+
+                        userLookupCache.GetUserAsync(user.OnlineID, cancellationTokenSource.Token)
+                                       .ContinueWith(task =>
+                                       {
+                                           var apiUser = task.GetResultSafely();
+
+                                           if (apiUser != null && !string.IsNullOrEmpty(apiUser.CoverUrl))
+                                           {
+                                               Schedule(() =>
+                                               {
+                                                   sprite.Texture = textures.Get(apiUser.CoverUrl);
+                                               });
+                                           }
+                                       }, cancellationTokenSource.Token);
+                    }
                 }
             }
 
@@ -78,6 +106,13 @@ namespace osu.Game.Users
             {
                 base.LoadComplete();
                 this.FadeInFromZero(400);
+            }
+
+            protected override void Dispose(bool isDisposing)
+            {
+                base.Dispose(isDisposing);
+                cancellationTokenSource?.Cancel();
+                cancellationTokenSource?.Dispose();
             }
         }
     }

@@ -2,6 +2,7 @@
 // See the LICENCE file in the repository root for full licence text.
 
 using System;
+using System.IO;
 using osu.Framework;
 using osu.Framework.Bindables;
 using osu.Framework.Configuration;
@@ -9,6 +10,7 @@ using osu.Framework.Configuration.Tracking;
 using osu.Framework.Extensions;
 using osu.Framework.Extensions.LocalisationExtensions;
 using osu.Framework.Localisation;
+using osu.Framework.Logging;
 using osu.Framework.Platform;
 using osu.Game.Beatmaps.Drawables.Cards;
 using osu.Game.Input;
@@ -102,9 +104,7 @@ namespace osu.Game.Configuration
 
             // Online settings
             SetDefault(OsuSetting.Username, string.Empty);
-            SetDefault(OsuSetting.LazerUsername, string.Empty);
             SetDefault(OsuSetting.Token, string.Empty);
-            SetDefault(OsuSetting.LazerToken, string.Empty);
 
             SetDefault(OsuSetting.AutomaticallyDownloadMissingBeatmaps, true);
 
@@ -372,11 +372,6 @@ namespace osu.Game.Configuration
     {
         Ruleset,
         Token,
-
-        /// <summary>
-        /// Oauth token for custom API server.
-        /// </summary>
-        LazerToken,
         MenuCursorSize,
         GameplayCursorSize,
         AutoCursorSize,
@@ -424,11 +419,6 @@ namespace osu.Game.Configuration
         BeatmapLeaderboardSortMode,
         BeatmapDetailModsFilter,
         Username,
-
-        /// <summary>
-        /// Saved username for custom API server.
-        /// </summary>
-        LazerUsername,
         ReleaseStream,
         SavePassword,
         SaveUsername,

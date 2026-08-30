@@ -30,9 +30,41 @@ namespace osu.Game.Configuration
 {
     public class OsuConfigManager : IniConfigManager<OsuSetting>, IGameplaySettings
     {
+        /// <summary>
+        /// Dedicated configuration file for this custom client to prevent upstream official client from overwriting settings.
+        /// </summary>
+        public const string LAZER_CONFIG_FILENAME = @"lazer.ini";
+
+        private const string upstream_config_filename = @"game.ini";
+
+        protected override string Filename => LAZER_CONFIG_FILENAME;
+
         public OsuConfigManager(Storage storage)
-            : base(storage)
+            : base(prepareMigratedStorage(storage))
         {
+        }
+
+        /// <summary>
+        /// One-time migration: copies existing settings from game.ini to lazer.ini on first startup so user retains skin, volume, and preferences.
+        /// </summary>
+        private static Storage prepareMigratedStorage(Storage storage)
+        {
+            try
+            {
+                // If lazer.ini does not exist yet, copy from game.ini
+                if (!storage.Exists(LAZER_CONFIG_FILENAME) && storage.Exists(upstream_config_filename))
+                {
+                    using (Stream src = storage.GetStream(upstream_config_filename, FileAccess.Read, FileMode.Open))
+                    using (Stream dst = storage.CreateFileSafely(LAZER_CONFIG_FILENAME))
+                        src.CopyTo(dst);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($@"[lazer.ini] Migration from {upstream_config_filename} failed: {ex.Message}", LoggingTarget.Runtime, LogLevel.Important);
+            }
+
+            return storage;
         }
 
         protected override void InitialiseDefaults()
@@ -498,23 +530,11 @@ namespace osu.Game.Configuration
         DashboardDisplayStyle,
 
         /// <summary>
-        /// API endpoint URL.
+        /// Extra.
         /// </summary>
         ApiUrl,
-
-        /// <summary>
-        /// Proxy URL.
-        /// </summary>
         ProxyUrl,
-
-        /// <summary>
-        /// Username for proxy authentication.
-        /// </summary>
         ProxyUsername,
-
-        /// <summary>
-        /// Password for proxy authentication.
-        /// </summary>
         ProxyPassword,
     }
 }

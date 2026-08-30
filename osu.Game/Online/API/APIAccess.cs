@@ -101,9 +101,9 @@ namespace osu.Game.Online.API
             log.Add($@"API endpoint root: {Endpoints.APIUrl}");
             log.Add($@"API request version: {APIVersion}");
 
-            ProvidedUsername = config.Get<string>(OsuSetting.LazerUsername);
+            ProvidedUsername = config.Get<string>(OsuSetting.Username);
 
-            authentication.TokenString = config.Get<string>(OsuSetting.LazerToken);
+            authentication.TokenString = config.Get<string>(OsuSetting.Token);
             authentication.Token.ValueChanged += onTokenChanged;
 
             AddInternal(localUserState = new LocalUserState(this, config));
@@ -157,7 +157,7 @@ namespace osu.Game.Online.API
             return connector;
         }
 
-        private void onTokenChanged(ValueChangedEvent<OAuthToken> e) => config.SetValue(OsuSetting.LazerToken, config.Get<bool>(OsuSetting.SavePassword) ? authentication.TokenString : string.Empty);
+        private void onTokenChanged(ValueChangedEvent<OAuthToken> e) => config.SetValue(OsuSetting.Token, config.Get<bool>(OsuSetting.SavePassword) ? authentication.TokenString : string.Empty);
 
         void IAPIProvider.Schedule(Action action) => base.Schedule(action);
 
@@ -331,7 +331,7 @@ namespace osu.Game.Online.API
                 Scheduler.Add(localUserState.SetPlaceholderLocalUser, ProvidedUsername, false);
 
             // save the username at this point, if the user requested for it to be.
-            config.SetValue(OsuSetting.LazerUsername, config.Get<bool>(OsuSetting.SaveUsername) ? ProvidedUsername : string.Empty);
+            config.SetValue(OsuSetting.Username, config.Get<bool>(OsuSetting.SaveUsername) ? ProvidedUsername : string.Empty);
 
             // only check the liveness probe when actually connecting, and not when waiting for the second factor.
             // `attemptConnect()` runs on a tight 50ms loop while waiting for the second factor,

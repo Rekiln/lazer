@@ -26,6 +26,7 @@ using osu.Game.Extensions;
 using osu.Game.Graphics.Containers;
 using osu.Game.IO.Archives;
 using osu.Game.Online.API;
+using osu.Game.Online.Multiplayer;
 using osu.Game.Overlays;
 using osu.Game.Rulesets;
 using osu.Game.Rulesets.Mods;
@@ -51,9 +52,14 @@ namespace osu.Game.Screens.Play
         public const double RESULTS_DISPLAY_DELAY = 1000.0;
 
         /// <summary>
+        /// The buffer time before a break ends when skipping.
+        /// </summary>
+        public const double BREAK_SKIP_LEAD_IN = 3000.0;
+
+        /// <summary>
         /// The minimum remaining break duration required to allow skipping.
         /// </summary>
-        public const double MINIMUM_BREAK_SKIP_TIME = 5000.0;
+        public const double MINIMUM_BREAK_SKIP_TIME = 6000.0;
 
         /// <summary>
         /// Raised after <see cref="StartGameplay"/> is called.
@@ -151,6 +157,9 @@ namespace osu.Game.Screens.Play
         public BreakOverlay BreakOverlay;
 
         private LetterboxOverlay letterboxOverlay;
+
+        [Resolved(CanBeNull = true)]
+        private MultiplayerClient multiplayerClient { get; set; }
 
         /// <summary>
         /// Whether the gameplay is currently in a break.
@@ -564,6 +573,9 @@ namespace osu.Game.Screens.Play
             if (!inBreak || !skipBreaks.Value || !Configuration.AllowSkipping || !DrawableRuleset.AllowGameplayOverlays)
                 return;
 
+            if (multiplayerClient?.Room != null)
+                return;
+
             double currentTime = GameplayClockContainer.CurrentTime;
             var currentBreak = Beatmap.Value.Beatmap.Breaks.FirstOrDefault(b => b.StartTime <= currentTime && currentTime < b.EndTime);
 
@@ -575,9 +587,9 @@ namespace osu.Game.Screens.Play
             if (remainingBreak < MINIMUM_BREAK_SKIP_TIME)
                 return;
 
-            double targetTime = currentBreak.EndTime - MasterGameplayClockContainer.MINIMUM_SKIP_TIME;
+            double targetTime = currentBreak.EndTime - BREAK_SKIP_LEAD_IN;
 
-            skipBreakOverlayContainer.Child = skipBreakOverlay = new SkipOverlay(currentBreak.EndTime)
+            skipBreakOverlayContainer.Child = skipBreakOverlay = new SkipOverlay(targetTime + MasterGameplayClockContainer.MINIMUM_SKIP_TIME)
             {
                 RequestSkip = () =>
                 {

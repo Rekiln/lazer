@@ -51,6 +51,11 @@ namespace osu.Game.Screens.Play
         public const double RESULTS_DISPLAY_DELAY = 1000.0;
 
         /// <summary>
+        /// The minimum remaining break duration required to allow skipping.
+        /// </summary>
+        public const double MINIMUM_BREAK_SKIP_TIME = 5000.0;
+
+        /// <summary>
         /// Raised after <see cref="StartGameplay"/> is called.
         /// </summary>
         public event Action OnGameplayStarted;
@@ -156,6 +161,9 @@ namespace osu.Game.Screens.Play
 
         protected SkipOverlay SkipIntroOverlay { get; private set; }
         private SkipOverlay skipOutroOverlay;
+        private SkipOverlay skipBreakOverlay;
+        private Container skipBreakOverlayContainer;
+        private readonly Bindable<bool> skipBreaks = new BindableBool();
 
         protected ScoreProcessor ScoreProcessor { get; private set; }
 
@@ -290,6 +298,7 @@ namespace osu.Game.Screens.Play
             config.BindWith(OsuSetting.BeatmapSkins, rulesetSkinProvider.BeatmapSkins);
             config.BindWith(OsuSetting.BeatmapColours, rulesetSkinProvider.BeatmapColours);
             config.BindWith(OsuSetting.BeatmapHitsounds, rulesetSkinProvider.BeatmapHitsounds);
+            config.BindWith(OsuSetting.SkipBreaks, skipBreaks);
 
             GameplayClockContainer.Add(new GameplayScrollWheelHandling());
 
@@ -507,6 +516,7 @@ namespace osu.Game.Screens.Play
                     },
                     // display the cursor above some HUD elements.
                     DrawableRuleset.Cursor?.CreateProxy() ?? new Container(),
+                    skipBreakOverlayContainer = new Container { RelativeSizeAxes = Axes.Both },
                     SkipIntroOverlay = CreateSkipOverlay(DrawableRuleset.GameplayStartTime).With(o =>
                     {
                         o.RequestSkip = RequestIntroSkip;
@@ -543,6 +553,42 @@ namespace osu.Game.Screens.Play
             updateGameplayState();
             updatePauseOnFocusLostState();
             HUDOverlay.InputCountController.IsCounting.Value = !isBreakTime.NewValue;
+            handleBreakSkip(isBreakTime.NewValue);
+        }
+
+        private void handleBreakSkip(bool inBreak)
+        {
+            skipBreakOverlay?.Expire();
+            skipBreakOverlay = null;
+
+            if (!inBreak || !skipBreaks.Value || !Configuration.AllowSkipping || !DrawableRuleset.AllowGameplayOverlays)
+                return;
+
+            double currentTime = GameplayClockContainer.CurrentTime;
+            var currentBreak = Beatmap.Value.Beatmap.Breaks.FirstOrDefault(b => b.StartTime <= currentTime && currentTime < b.EndTime);
+
+            if (currentBreak == null)
+                return;
+
+            double remainingBreak = currentBreak.EndTime - currentTime;
+
+            if (remainingBreak < MINIMUM_BREAK_SKIP_TIME)
+                return;
+
+            double targetTime = currentBreak.EndTime - MasterGameplayClockContainer.MINIMUM_SKIP_TIME;
+
+            skipBreakOverlayContainer.Child = skipBreakOverlay = new SkipOverlay(currentBreak.EndTime)
+            {
+                RequestSkip = () =>
+                {
+                    samplePlaybackDisabled.Value = true;
+                    Seek(targetTime);
+                    updateSampleDisabledState();
+
+                    skipBreakOverlay?.Expire();
+                    skipBreakOverlay = null;
+                }
+            };
         }
 
         private void updateGameplayState()

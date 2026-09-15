@@ -189,6 +189,7 @@ namespace osu.Game.Configuration
 
             SetDefault(OsuSetting.HitLighting, true);
             SetDefault(OsuSetting.StarFountains, true);
+            SetDefault(OsuSetting.SkipBreaks, false);
 
             SetDefault(OsuSetting.HUDVisibilityMode, HUDVisibilityMode.Always);
             SetDefault(OsuSetting.ShowHealthDisplayWhenCantFail, true);
@@ -526,5 +527,6 @@ namespace osu.Game.Configuration
         ProxyUrl,
         ProxyUsername,
         ProxyPassword,
+        SkipBreaks,
     }
 }

@@ -514,9 +514,9 @@ namespace osu.Game.Screens.Play
                         ProcessCustomClock = false,
                         BreakTracker = breakTracker,
                     },
+                    skipBreakOverlayContainer = new Container { RelativeSizeAxes = Axes.Both },
                     // display the cursor above some HUD elements.
                     DrawableRuleset.Cursor?.CreateProxy() ?? new Container(),
-                    skipBreakOverlayContainer = new Container { RelativeSizeAxes = Axes.Both },
                     SkipIntroOverlay = CreateSkipOverlay(DrawableRuleset.GameplayStartTime).With(o =>
                     {
                         o.RequestSkip = RequestIntroSkip;
@@ -582,11 +582,21 @@ namespace osu.Game.Screens.Play
                 RequestSkip = () =>
                 {
                     samplePlaybackDisabled.Value = true;
-                    Seek(targetTime);
-                    updateSampleDisabledState();
 
+                    skipBreakOverlay?.Hide();
                     skipBreakOverlay?.Expire();
                     skipBreakOverlay = null;
+
+                    bool wasFrameStable = DrawableRuleset.FrameStablePlayback;
+                    DrawableRuleset.FrameStablePlayback = false;
+
+                    Seek(targetTime);
+
+                    ScheduleAfterChildren(() =>
+                    {
+                        DrawableRuleset.FrameStablePlayback = wasFrameStable;
+                        updateSampleDisabledState();
+                    });
                 }
             };
         }

@@ -92,9 +92,12 @@ namespace osu.Game.Users
 
                                            if (apiUser != null && !string.IsNullOrEmpty(apiUser.CoverUrl))
                                            {
+                                               var tex = textures.Get(apiUser.CoverUrl);
+
                                                Schedule(() =>
                                                {
-                                                   sprite.Texture = textures.Get(apiUser.CoverUrl);
+                                                   if (tex != null)
+                                                       sprite.Texture = tex;
                                                });
                                            }
                                        }, cancellationTokenSource.Token);

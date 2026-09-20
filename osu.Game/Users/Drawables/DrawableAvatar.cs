@@ -60,9 +60,12 @@ namespace osu.Game.Users.Drawables
                                        if (string.IsNullOrEmpty(targetUrl))
                                            targetUrl = $@"https://a.ppy.sh/{user.OnlineID}";
 
+                                       var tex = onlineTextures.Get(targetUrl);
+
                                        Schedule(() =>
                                        {
-                                           Texture = onlineTextures.Get(targetUrl);
+                                           if (tex != null)
+                                               Texture = tex;
                                        });
                                    }, cancellationTokenSource.Token);
                 }

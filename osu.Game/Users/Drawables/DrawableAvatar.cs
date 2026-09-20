@@ -50,24 +50,23 @@ namespace osu.Game.Users.Drawables
                 else if (userLookupCache != null)
                 {
                     cancellationTokenSource = new CancellationTokenSource();
+                    var token = cancellationTokenSource.Token;
 
-                    userLookupCache.GetUserAsync(user.OnlineID, cancellationTokenSource.Token)
-                                   .ContinueWith(task =>
-                                   {
-                                       var apiUser = task.GetResultSafely();
-                                       string targetUrl = apiUser?.AvatarUrl;
+                    Task.Run(async () =>
+                    {
+                        var apiUser = await userLookupCache.GetUserAsync(user.OnlineID, token).ConfigureAwait(false);
+                        string targetUrl = apiUser?.AvatarUrl;
 
-                                       if (string.IsNullOrEmpty(targetUrl))
-                                           targetUrl = $@"https://a.ppy.sh/{user.OnlineID}";
+                        if (string.IsNullOrEmpty(targetUrl))
+                            targetUrl = $@"https://a.ppy.sh/{user.OnlineID}";
 
-                                       var tex = onlineTextures.Get(targetUrl);
+                        var tex = await onlineTextures.GetAsync(targetUrl, token).ConfigureAwait(false);
 
-                                       Schedule(() =>
-                                       {
-                                           if (tex != null)
-                                               Texture = tex;
-                                       });
-                                   }, cancellationTokenSource.Token);
+                        if (tex != null && !token.IsCancellationRequested)
+                        {
+                            Schedule(() => Texture = tex);
+                        }
+                    }, token);
                 }
                 else
                 {

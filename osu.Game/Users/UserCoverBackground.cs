@@ -84,23 +84,22 @@ namespace osu.Game.Users
                     else if (user.OnlineID > 1 && userLookupCache != null)
                     {
                         cancellationTokenSource = new CancellationTokenSource();
+                        var token = cancellationTokenSource.Token;
 
-                        userLookupCache.GetUserAsync(user.OnlineID, cancellationTokenSource.Token)
-                                       .ContinueWith(task =>
-                                       {
-                                           var apiUser = task.GetResultSafely();
+                        Task.Run(async () =>
+                        {
+                            var apiUser = await userLookupCache.GetUserAsync(user.OnlineID, token).ConfigureAwait(false);
 
-                                           if (apiUser != null && !string.IsNullOrEmpty(apiUser.CoverUrl))
-                                           {
-                                               var tex = textures.Get(apiUser.CoverUrl);
+                            if (apiUser != null && !string.IsNullOrEmpty(apiUser.CoverUrl))
+                            {
+                                var tex = await textures.GetAsync(apiUser.CoverUrl, token).ConfigureAwait(false);
 
-                                               Schedule(() =>
-                                               {
-                                                   if (tex != null)
-                                                       sprite.Texture = tex;
-                                               });
-                                           }
-                                       }, cancellationTokenSource.Token);
+                                if (tex != null && !token.IsCancellationRequested)
+                                {
+                                    Schedule(() => sprite.Texture = tex);
+                                }
+                            }
+                        }, token);
                     }
                 }
             }

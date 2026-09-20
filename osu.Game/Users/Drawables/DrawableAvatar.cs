@@ -3,15 +3,13 @@
 
 #nullable disable
 
-using System.Threading;
-using JetBrains.Annotations;
+using System;
 using osu.Framework.Allocation;
-using osu.Framework.Extensions;
 using osu.Framework.Graphics;
 using osu.Framework.Graphics.Sprites;
 using osu.Framework.Graphics.Textures;
-using osu.Game.Database;
 using osu.Game.Graphics;
+using osu.Game.Online.API;
 using osu.Game.Online.API.Requests.Responses;
 
 namespace osu.Game.Users.Drawables
@@ -20,7 +18,6 @@ namespace osu.Game.Users.Drawables
     public partial class DrawableAvatar : Sprite
     {
         private readonly IUser user;
-        private CancellationTokenSource cancellationTokenSource;
 
         /// <summary>
         /// A simple, non-interactable avatar sprite for the specified user.
@@ -37,41 +34,22 @@ namespace osu.Game.Users.Drawables
         }
 
         [BackgroundDependencyLoader]
-        private void load(LargeTextureStore textures, OnlineAssetCachingStore onlineTextures, [CanBeNull] UserLookupCache userLookupCache)
+        private void load(LargeTextureStore textures, OnlineAssetCachingStore onlineTextures, IAPIProvider api)
         {
             if (user != null && user.OnlineID > 1)
             {
                 string avatarUrl = (user as APIUser)?.AvatarUrl;
 
-                if (!string.IsNullOrEmpty(avatarUrl))
+                if (string.IsNullOrEmpty(avatarUrl))
                 {
-                    Texture = onlineTextures.Get(avatarUrl);
+                    string baseUrl = api?.Endpoints?.WebsiteUrl;
+
+                    avatarUrl = !string.IsNullOrEmpty(baseUrl) && !baseUrl.EndsWith(@".ppy.sh", StringComparison.OrdinalIgnoreCase)
+                        ? $@"{baseUrl}/api/v2/users/{user.OnlineID}/avatar"
+                        : $@"https://a.ppy.sh/{user.OnlineID}";
                 }
-                else if (userLookupCache != null)
-                {
-                    cancellationTokenSource = new CancellationTokenSource();
-                    var token = cancellationTokenSource.Token;
 
-                    Task.Run(async () =>
-                    {
-                        var apiUser = await userLookupCache.GetUserAsync(user.OnlineID, token).ConfigureAwait(false);
-                        string targetUrl = apiUser?.AvatarUrl;
-
-                        if (string.IsNullOrEmpty(targetUrl))
-                            targetUrl = $@"https://a.ppy.sh/{user.OnlineID}";
-
-                        var tex = await onlineTextures.GetAsync(targetUrl, token).ConfigureAwait(false);
-
-                        if (tex != null && !token.IsCancellationRequested)
-                        {
-                            Schedule(() => Texture = tex);
-                        }
-                    }, token);
-                }
-                else
-                {
-                    Texture = onlineTextures.Get($@"https://a.ppy.sh/{user.OnlineID}");
-                }
+                Texture = onlineTextures.Get(avatarUrl);
             }
 
             Texture ??= textures.Get(@"Online/avatar-guest");
@@ -81,13 +59,6 @@ namespace osu.Game.Users.Drawables
         {
             base.LoadComplete();
             this.FadeInFromZero(300, Easing.OutQuint);
-        }
-
-        protected override void Dispose(bool isDisposing)
-        {
-            base.Dispose(isDisposing);
-            cancellationTokenSource?.Cancel();
-            cancellationTokenSource?.Dispose();
         }
     }
 }

@@ -50,6 +50,7 @@ namespace osu.Game.Users.Drawables
                 }
 
                 Texture = onlineTextures.Get(avatarUrl);
+                Texture ??= onlineTextures.Get($@"https://a.ppy.sh/{user.OnlineID}");
             }
 
             Texture ??= textures.Get(@"Online/avatar-guest");

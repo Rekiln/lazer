@@ -12,32 +12,39 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   DOTNET_VERSION: '10.0.x'
 
 jobs:
   build-desktop:
-    name: Build Test (${{ matrix.os.prettyname }})
+    name: Build (${{ matrix.os.prettyname }})
     runs-on: ${{ matrix.os.fullname }}
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         os:
-          - { prettyname: Windows, fullname: windows-latest }
-          - { prettyname: Linux, fullname: ubuntu-latest }
+          - prettyname: Windows
+            fullname: windows-latest
+          - prettyname: Linux
+            fullname: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Restore Packages
+      - name: Restore packages
         run: dotnet restore osu.Desktop.slnf
 
-      - name: Compile Desktop Solution
-        run: dotnet build -c Debug osu.Desktop.slnf
+      - name: Compile desktop solution
+        run: dotnet build -c Debug --no-restore osu.Desktop.slnf

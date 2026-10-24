@@ -14,6 +14,7 @@ using osu.Framework.Graphics.Textures;
 using osu.Framework.Input.Events;
 using osu.Framework.Utils;
 using osu.Game.Configuration;
+using osu.Game.Skinning;
 using osuTK;
 
 namespace osu.Game.Graphics.Cursor
@@ -255,14 +256,24 @@ namespace osu.Game.Graphics.Cursor
 
             public Sprite AdditiveLayer = null!;
 
+            private Sprite cursorSprite = null!;
+            private Sprite cursorMiddleSprite = null!;
+            private IBindable<bool> useSkinCursorInMenus = null!;
+            private ISkinSource skinSource = null!;
+            private Texture? defaultCursorTexture;
+            private Texture? defaultAdditiveTexture;
+
             public Cursor()
             {
                 AutoSizeAxes = Axes.Both;
             }
 
             [BackgroundDependencyLoader]
-            private void load(OsuConfigManager config, TextureStore textures, OsuColour colour)
+            private void load(OsuConfigManager config, TextureStore textures, OsuColour colour, ISkinSource skinSource)
             {
+                this.skinSource = skinSource;
+                defaultCursorTexture = textures.Get(@"Cursor/menu-cursor");
+                defaultAdditiveTexture = textures.Get(@"Cursor/menu-cursor-additive");
                 Children = new Drawable[]
                 {
                     cursorContainer = new Container
@@ -270,16 +281,20 @@ namespace osu.Game.Graphics.Cursor
                         AutoSizeAxes = Axes.Both,
                         Children = new Drawable[]
                         {
-                            new Sprite
+                            cursorSprite = new Sprite
                             {
-                                Texture = textures.Get(@"Cursor/menu-cursor"),
+                                Texture = defaultCursorTexture,
+                            },
+                            cursorMiddleSprite = new Sprite
+                            {
+                                Alpha = 0,
                             },
                             AdditiveLayer = new Sprite
                             {
                                 Blending = BlendingParameters.Additive,
                                 Colour = colour.Pink,
                                 Alpha = 0,
-                                Texture = textures.Get(@"Cursor/menu-cursor-additive"),
+                                Texture = defaultAdditiveTexture,
                             },
                         }
                     }
@@ -287,7 +302,31 @@ namespace osu.Game.Graphics.Cursor
 
                 cursorScale = config.GetBindable<float>(OsuSetting.MenuCursorSize);
                 cursorScale.BindValueChanged(scale => cursorContainer.Scale = new Vector2(scale.NewValue * base_scale), true);
+
+                useSkinCursorInMenus = config.GetBindable<bool>(OsuSetting.UseSkinCursorInMenus);
+                useSkinCursorInMenus.BindValueChanged(_ => updateSkinCursor(), true);
+                skinSource.SourceChanged += updateSkinCursor;
             }
+            private void updateSkinCursor()
+            {
+                ISkin? provider = useSkinCursorInMenus.Value
+                    ? skinSource.FindProvider(s => s.GetTexture("cursor") != null)
+                    : null;
+
+                Texture? skinCursorTexture = provider?.GetTexture("cursor");
+                cursorSprite.Texture = skinCursorTexture ?? defaultCursorTexture;
+
+                Texture? middleTexture = provider?.GetTexture("cursormiddle");
+                cursorMiddleSprite.Texture = middleTexture;
+                cursorMiddleSprite.Alpha = middleTexture != null ? 1 : 0;
+
+                bool hasSkinCursor = skinCursorTexture != null;
+                Vector2 textureScale = hasSkinCursor ? new Vector2(1 / base_scale) : Vector2.One;
+                cursorSprite.Scale = textureScale;
+                cursorMiddleSprite.Scale = textureScale;
+                AdditiveLayer.Texture = hasSkinCursor ? null : defaultAdditiveTexture;
+            }
+
         }
 
         private partial class MouseInputDetector : Component

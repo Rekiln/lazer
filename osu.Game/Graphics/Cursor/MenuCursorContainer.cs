@@ -321,9 +321,8 @@ namespace osu.Game.Graphics.Cursor
                 cursorMiddleSprite.Alpha = middleTexture != null ? 1 : 0;
 
                 bool hasSkinCursor = skinCursorTexture != null;
-                Vector2 textureScale = hasSkinCursor ? new Vector2(1 / base_scale) : Vector2.One;
-                cursorSprite.Scale = textureScale;
-                cursorMiddleSprite.Scale = textureScale;
+                cursorSprite.Scale = Vector2.One;
+                cursorMiddleSprite.Scale = Vector2.One;
                 AdditiveLayer.Texture = hasSkinCursor ? null : defaultAdditiveTexture;
             }
 

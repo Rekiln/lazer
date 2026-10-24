@@ -51,6 +51,7 @@ namespace osu.Game.Graphics.Cursor
         private Sample tapSample = null!;
 
         private MouseInputDetector mouseInputDetector = null!;
+        private SkinnableMenuCursorTrail cursorTrail = null!;
 
         private bool visible;
 
@@ -63,6 +64,13 @@ namespace osu.Game.Graphics.Cursor
                 screenshotCursorVisibility.BindTo(screenshotManager.CursorVisibility);
 
             tapSample = audio.Samples.Get(@"UI/cursor-tap");
+
+            // Render the trail behind the cursor itself.
+            Add(cursorTrail = new SkinnableMenuCursorTrail
+            {
+                RelativeSizeAxes = Axes.Both,
+                Depth = 1,
+            });
 
             Add(mouseInputDetector = new MouseInputDetector());
         }
@@ -143,6 +151,13 @@ namespace osu.Game.Graphics.Cursor
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
+            if (visible
+                && activeCursor.UsesGameplayCursor
+                && activeCursor.GameplayCursor != null)
+            {
+                cursorTrail.AddTrail(e.ScreenSpaceMousePosition, activeCursor.TrailTexture, activeCursor.GameplayCursor.CurrentScale);
+            }
+
             if (dragRotationState != DragRotationState.NotDragging)
             {
                 lastMovePosition = e.MousePosition;
@@ -263,6 +278,8 @@ namespace osu.Game.Graphics.Cursor
             /// Whether this cursor is currently rendering the skin's gameplay cursor.
             /// </summary>
             public bool UsesGameplayCursor => gameplayCursor != null;
+            public SkinnableGameplayCursor? GameplayCursor => gameplayCursor;
+            public Texture? TrailTexture { get; private set; }
 
             public Cursor()
             {
@@ -308,8 +325,16 @@ namespace osu.Game.Graphics.Cursor
                 Clear();
                 gameplayCursor = null;
 
-                bool hasSkinCursor = useSkinCursorInMenus.Value
-                                     && skinSource.FindProvider(s => s.GetTexture(@"cursor") != null) != null;
+                ISkin? cursorProvider = useSkinCursorInMenus.Value
+                    ? skinSource.FindProvider(s => s.GetTexture(@"cursor") != null)
+                    : null;
+                bool hasSkinCursor = cursorProvider != null;
+
+                // Use the skin's own trail when available (or the active skin
+                // chain's fallback), but never show a skin trail with the default arrow.
+                TrailTexture = hasSkinCursor
+                    ? skinSource.FindProvider(s => s.GetTexture(@"cursortrail") != null)?.GetTexture(@"cursortrail")
+                    : null;
 
                 if (hasSkinCursor)
                 {

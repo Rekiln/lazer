@@ -28,6 +28,12 @@ namespace osu.Game.Graphics.Cursor
         private IBindable<float> gameplayCursorSize = null!;
         private float expandFactor = 1f;
 
+        /// <summary>
+        /// Current gameplay cursor size including the pressed-state expansion.
+        /// Used to keep the menu trail in sync with the cursor head.
+        /// </summary>
+        public float CurrentScale => gameplayCursorSize.Value * expandFactor;
+
         [Resolved(canBeNull: true)]
         private ISkinSource? skinSource { get; set; }
 

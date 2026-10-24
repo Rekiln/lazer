@@ -32,6 +32,8 @@ namespace osu.Game.Graphics.Cursor
         /// Current gameplay cursor size including the pressed-state expansion.
         /// Used to keep the menu trail in sync with the cursor head.
         /// </summary>
+        public float CursorScale => gameplayCursorSize.Value;
+        public float ExpandedScale => expandFactor;
         public float CurrentScale => gameplayCursorSize.Value * expandFactor;
 
         [Resolved(canBeNull: true)]

@@ -155,7 +155,12 @@ namespace osu.Game.Graphics.Cursor
                 && activeCursor.UsesGameplayCursor
                 && activeCursor.GameplayCursor != null)
             {
-                cursorTrail.AddTrail(e.ScreenSpaceMousePosition, activeCursor.TrailTexture, activeCursor.GameplayCursor.CurrentScale);
+                cursorTrail.AddTrail(
+                    e.ScreenSpaceMousePosition,
+                    activeCursor.TrailTexture,
+                    activeCursor.GameplayCursor.CursorScale,
+                    activeCursor.GameplayCursor.ExpandedScale,
+                    activeCursor.TrailIsDisjoint);
             }
 
             if (dragRotationState != DragRotationState.NotDragging)
@@ -280,6 +285,7 @@ namespace osu.Game.Graphics.Cursor
             public bool UsesGameplayCursor => gameplayCursor != null;
             public SkinnableGameplayCursor? GameplayCursor => gameplayCursor;
             public Texture? TrailTexture { get; private set; }
+            public bool TrailIsDisjoint { get; private set; }
 
             public Cursor()
             {
@@ -335,6 +341,11 @@ namespace osu.Game.Graphics.Cursor
                 TrailTexture = hasSkinCursor
                     ? skinSource.FindProvider(s => s.GetTexture(@"cursortrail") != null)?.GetTexture(@"cursortrail")
                     : null;
+
+                // Match osu!'s LegacyCursorTrail behaviour: without cursormiddle,
+                // trail parts are sampled at 60 Hz and fade quickly. With cursormiddle,
+                // movements are interpolated into a continuous trail.
+                TrailIsDisjoint = hasSkinCursor && cursorProvider?.GetTexture(@"cursormiddle") == null;
 
                 if (hasSkinCursor)
                 {

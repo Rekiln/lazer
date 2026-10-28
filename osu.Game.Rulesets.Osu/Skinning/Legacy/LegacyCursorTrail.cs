@@ -23,6 +23,9 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
 
         private IBindable<float> cursorSize = null!;
 
+        /// <summary>Optional cursor-size override used when this trail is displayed in menus.</summary>
+        public float? MenuCursorSizeOverride { get; set; }
+
         private Vector2? currentPosition;
 
         public LegacyCursorTrail(ISkin skin)
@@ -64,7 +67,7 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
 
         protected override bool InterpolateMovements => !DisjointTrail;
 
-        protected override float IntervalMultiplier => 1 / Math.Max(cursorSize.Value, 1);
+        protected override float IntervalMultiplier => 1 / Math.Max(MenuCursorSizeOverride ?? cursorSize.Value, 1);
         protected override bool AvoidDrawingNearCursor => !DisjointTrail;
 
         protected override void Update()

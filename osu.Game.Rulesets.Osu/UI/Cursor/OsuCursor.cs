@@ -25,6 +25,7 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         public const float SIZE = 28;
 
         private bool cursorExpand;
+        private float? menuCursorScaleOverride;
 
         private SkinnableDrawable cursorSprite;
         private Container cursorScaleContainer = null!;
@@ -100,8 +101,17 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
             },
         };
 
+        public void SetMenuCursorScale(float scale)
+        {
+            menuCursorScaleOverride = scale;
+            cursorScale.Value = CalculateCursorScale();
+        }
+
         protected virtual float CalculateCursorScale()
         {
+            if (menuCursorScaleOverride.HasValue)
+                return menuCursorScaleOverride.Value;
+
             float scale = userCursorScale.Value * ModScaleAdjust.Value;
 
             if (autoCursorScale.Value && state != null)

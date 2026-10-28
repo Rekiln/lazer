@@ -10,6 +10,8 @@ using osu.Game.Rulesets.Osu.Objects;
 using osu.Game.Rulesets.Scoring;
 using osu.Game.Screens.Play.HUD;
 using osu.Game.Screens.Play.HUD.HitErrorMeters;
+using osu.Game.Graphics.Cursor;
+using osu.Game.Rulesets.Osu.UI.Cursor;
 using osu.Game.Skinning;
 using osuTK;
 
@@ -46,6 +48,10 @@ namespace osu.Game.Rulesets.Osu.Skinning.Legacy
 
         public override Drawable? GetDrawableComponent(ISkinComponentLookup lookup)
         {
+            if (lookup is SkinComponentLookup<MenuCursorComponents> menuCursorLookup
+                && menuCursorLookup.Component == MenuCursorComponents.GameplayCursorVisual)
+                return new OsuMenuCursorVisual();
+
             switch (lookup)
             {
                 case GlobalSkinnableContainerLookup containerLookup:

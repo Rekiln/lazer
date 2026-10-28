@@ -14,27 +14,31 @@ using osuTK;
 namespace osu.Game.Graphics.Cursor
 {
     /// <summary>
-    /// A ruleset-agnostic skin cursor that can be used outside gameplay.
-    /// Skin textures are rendered at their native size and centred on the mouse
-    /// position, while GameplayCursorSize controls their scale.
+    /// A ruleset-agnostic skin cursor which follows the legacy gameplay cursor's visual rules
+    /// while remaining usable from osu.Game (without a dependency on osu.Game.Rulesets.Osu).
     /// </summary>
     public partial class SkinnableGameplayCursor : CompositeDrawable
     {
         public const float BASE_SIZE = 50f;
-
-        private const float pressed_scale = 1.2f;
+        private const float pressed_scale = 1.3f;
+        private const int revolution_duration = 10000;
 
         private Container scaleContainer = null!;
+        private Sprite cursorSprite = null!;
         private IBindable<float> gameplayCursorSize = null!;
-        private float expandFactor = 1f;
+        private bool cursorExpand = true;
 
-        /// <summary>
-        /// Current gameplay cursor size including the pressed-state expansion.
-        /// Used to keep the menu trail in sync with the cursor head.
-        /// </summary>
+        /// <summary>The unexpanded gameplay cursor size multiplier.</summary>
         public float CursorScale => gameplayCursorSize.Value;
-        public float ExpandedScale => expandFactor;
-        public float CurrentScale => gameplayCursorSize.Value * expandFactor;
+
+        /// <summary>The scale of the cursor head itself, matching gameplay's CurrentExpandedScale.</summary>
+        public float ExpandedScale => cursorSprite?.Scale.X ?? 1f;
+
+        /// <summary>The combined head scale, useful for diagnostics only.</summary>
+        public float CurrentScale => CursorScale * ExpandedScale;
+
+        /// <summary>The current skin cursor rotation, used for rotating trail pieces.</summary>
+        public float CurrentRotation => cursorSprite?.Rotation ?? 0f;
 
         [Resolved(canBeNull: true)]
         private ISkinSource? skinSource { get; set; }
@@ -77,21 +81,20 @@ namespace osu.Game.Graphics.Cursor
 
         public void Expand()
         {
-            expandFactor = pressed_scale;
-            scaleContainer
-                .ScaleTo(targetScale(1f))
-                .ScaleTo(targetScale(expandFactor), 400, Easing.OutElasticHalf);
+            if (!cursorExpand || cursorSprite == null)
+                return;
+
+            // Gameplay expands the cursor head, not the whole cursor stack.
+            cursorSprite.ScaleTo(1f).ScaleTo(pressed_scale, 100, Easing.Out);
         }
 
         public void Contract()
         {
-            expandFactor = 1f;
-            scaleContainer.ScaleTo(targetScale(expandFactor), 400, Easing.OutQuad);
+            if (cursorSprite != null)
+                cursorSprite.ScaleTo(1f, 100, Easing.Out);
         }
 
-        private void updateScale() => scaleContainer.Scale = targetScale(expandFactor);
-
-        private Vector2 targetScale(float factor) => new Vector2(gameplayCursorSize.Value * factor);
+        private void updateScale() => scaleContainer.Scale = new Vector2(gameplayCursorSize.Value);
 
         private void rebuildSprites()
         {
@@ -99,8 +102,14 @@ namespace osu.Game.Graphics.Cursor
             Texture? cursorTexture = provider?.GetTexture(@"cursor");
             Texture? middleTexture = provider?.GetTexture(@"cursormiddle");
 
+            cursorExpand = provider?.GetConfig<MenuCursorSkinConfiguration, bool>(MenuCursorSkinConfiguration.CursorExpand)?.Value ?? true;
+            bool cursorCentre = provider?.GetConfig<MenuCursorSkinConfiguration, bool>(MenuCursorSkinConfiguration.CursorCentre)?.Value ?? true;
+            bool cursorRotate = provider?.GetConfig<MenuCursorSkinConfiguration, bool>(MenuCursorSkinConfiguration.CursorRotate)?.Value ?? true;
+            Anchor spriteOrigin = cursorCentre ? Anchor.Centre : Anchor.TopLeft;
+
             if (cursorTexture == null)
             {
+                cursorSprite = null!;
                 scaleContainer.Child = null;
                 return;
             }
@@ -109,14 +118,16 @@ namespace osu.Game.Graphics.Cursor
             {
                 Anchor = Anchor.Centre,
                 Origin = Anchor.Centre,
-                AutoSizeAxes = Axes.Both,
-                Child = new Sprite
-                {
-                    Texture = cursorTexture,
-                    Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
-                },
+                RelativeSizeAxes = Axes.Both,
             };
+
+            cursorSprite = new Sprite
+            {
+                Texture = cursorTexture,
+                Anchor = Anchor.Centre,
+                Origin = spriteOrigin,
+            };
+            stack.Add(cursorSprite);
 
             if (middleTexture != null)
             {
@@ -124,12 +135,23 @@ namespace osu.Game.Graphics.Cursor
                 {
                     Texture = middleTexture,
                     Anchor = Anchor.Centre,
-                    Origin = Anchor.Centre,
+                    Origin = spriteOrigin,
                 });
             }
 
             scaleContainer.Child = stack;
             updateScale();
+
+            if (cursorRotate)
+                cursorSprite.Spin(revolution_duration, RotationDirection.Clockwise);
+        }
+
+        // String-based lookup avoids taking a compile-time dependency on osu.Game.Rulesets.Osu.
+        private enum MenuCursorSkinConfiguration
+        {
+            CursorCentre,
+            CursorRotate,
+            CursorExpand,
         }
     }
 }

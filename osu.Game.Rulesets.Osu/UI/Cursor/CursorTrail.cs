@@ -166,18 +166,25 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
         protected virtual bool AvoidDrawingNearCursor => false;
 
         private Vector2? lastPosition;
-        private readonly InputResampler resampler = new InputResampler();
+        private InputResampler resampler = new InputResampler();
+        public bool CollectTrail { get; set; } = true;
 
         public override bool ReceivePositionalInputAt(Vector2 screenSpacePos) => true;
 
         protected override bool OnMouseMove(MouseMoveEvent e)
         {
+            if (!CollectTrail)
+                return false;
+
             AddTrail(e.ScreenSpaceMousePosition);
             return base.OnMouseMove(e);
         }
 
         protected void AddTrail(Vector2 position)
         {
+            if (!CollectTrail)
+                return;
+
             position = ToLocalSpace(position);
 
             if (InterpolateMovements)
@@ -213,6 +220,19 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
                 lastPosition = position;
                 addPart(lastPosition.Value);
             }
+        }
+
+        /// <summary>Clears all previously sampled trail parts and starts a new sampling path.</summary>
+        public void ResetTrail()
+        {
+            lastPosition = null;
+            resampler = new InputResampler();
+            currentIndex = 0;
+
+            for (int i = 0; i < parts.Length; i++)
+                parts[i].InvalidationID = -1;
+
+            Invalidate(Invalidation.DrawNode);
         }
 
         private void addPart(Vector2 localSpacePosition)

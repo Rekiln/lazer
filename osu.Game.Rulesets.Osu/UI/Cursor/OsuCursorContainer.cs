@@ -84,6 +84,8 @@ namespace osu.Game.Rulesets.Osu.UI.Cursor
                 ActiveCursor.Contract();
         }
 
+
+
         protected override void Update()
         {
             base.Update();
